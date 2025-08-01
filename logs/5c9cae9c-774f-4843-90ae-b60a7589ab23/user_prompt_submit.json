@@ -12,5 +12,26 @@
     "cwd": "/home/cyrus/git/swve/STT-whisper",
     "hook_event_name": "UserPromptSubmit",
     "prompt": "We are already in the file/directory for it. When you're done also create a new repo for this."
+  },
+  {
+    "session_id": "5c9cae9c-774f-4843-90ae-b60a7589ab23",
+    "transcript_path": "/home/cyrus/.claude/projects/-home-cyrus-git-swve-STT-whisper/5c9cae9c-774f-4843-90ae-b60a7589ab23.jsonl",
+    "cwd": "/home/cyrus/git/swve/STT-whisper",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "We need it to work on https pls"
+  },
+  {
+    "session_id": "5c9cae9c-774f-4843-90ae-b60a7589ab23",
+    "transcript_path": "/home/cyrus/.claude/projects/-home-cyrus-git-swve-STT-whisper/5c9cae9c-774f-4843-90ae-b60a7589ab23.jsonl",
+    "cwd": "/home/cyrus/git/swve/STT-whisper",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "Opps wrong chat, please rever that https is not needed at all wrong chat."
+  },
+  {
+    "session_id": "5c9cae9c-774f-4843-90ae-b60a7589ab23",
+    "transcript_path": "/home/cyrus/.claude/projects/-home-cyrus-git-swve-STT-whisper/5c9cae9c-774f-4843-90ae-b60a7589ab23.jsonl",
+    "cwd": "/home/cyrus/git/swve/STT-whisper",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "Can we make sure this project will work for mac or linux ! ALso update the read me too and explain what its for and how to create new commands"
   }
 ]

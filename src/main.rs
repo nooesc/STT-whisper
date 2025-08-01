@@ -23,9 +23,31 @@ struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         let mut shortcuts = HashMap::new();
-        shortcuts.insert("open terminal".to_string(), "gnome-terminal".to_string());
-        shortcuts.insert("take screenshot".to_string(), "gnome-screenshot".to_string());
-        shortcuts.insert("open browser".to_string(), "firefox".to_string());
+        
+        // Cross-platform default commands
+        #[cfg(target_os = "macos")]
+        {
+            shortcuts.insert("open terminal".to_string(), "open -a Terminal".to_string());
+            shortcuts.insert("take screenshot".to_string(), "screencapture -i screenshot.png".to_string());
+            shortcuts.insert("open browser".to_string(), "open -a Safari".to_string());
+            shortcuts.insert("open finder".to_string(), "open .".to_string());
+        }
+        
+        #[cfg(target_os = "linux")]
+        {
+            shortcuts.insert("open terminal".to_string(), "gnome-terminal || konsole || xterm".to_string());
+            shortcuts.insert("take screenshot".to_string(), "gnome-screenshot || spectacle || scrot".to_string());
+            shortcuts.insert("open browser".to_string(), "xdg-open https://google.com".to_string());
+            shortcuts.insert("open file manager".to_string(), "xdg-open .".to_string());
+        }
+        
+        #[cfg(target_os = "windows")]
+        {
+            shortcuts.insert("open terminal".to_string(), "cmd".to_string());
+            shortcuts.insert("take screenshot".to_string(), "snippingtool".to_string());
+            shortcuts.insert("open browser".to_string(), "start https://google.com".to_string());
+            shortcuts.insert("open explorer".to_string(), "explorer .".to_string());
+        }
         
         Settings {
             keybind: "F8".to_string(),
@@ -180,10 +202,20 @@ fn transcribe_audio(whisper_path: &str, audio_path: &str) -> Result<String, Box<
 fn execute_command(command: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Executing command: {}", command);
     
-    Command::new("bash")
-        .arg("-c")
-        .arg(command)
-        .spawn()?;
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(&["/C", command])
+            .spawn()?;
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .spawn()?;
+    }
     
     Ok(())
 }
@@ -331,4 +363,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         thread::sleep(Duration::from_millis(50));
     }
+    
+    Ok(())
 }

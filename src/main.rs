@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -13,11 +12,33 @@ use hound::{WavSpec, WavWriter};
 use serde::{Deserialize, Serialize};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 
+mod tts;
+use tts::VoiceFeedback;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Settings {
     keybind: String,
     whisper_model_path: String,
     shortcuts: HashMap<String, String>,
+    #[serde(default = "default_voice_feedback")]
+    voice_feedback: VoiceFeedbackSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct VoiceFeedbackSettings {
+    enabled: bool,
+    announce_recording: bool,
+    confirm_commands: bool,
+    announce_errors: bool,
+}
+
+fn default_voice_feedback() -> VoiceFeedbackSettings {
+    VoiceFeedbackSettings {
+        enabled: true,
+        announce_recording: true,
+        confirm_commands: true,
+        announce_errors: true,
+    }
 }
 
 impl Default for Settings {
@@ -53,10 +74,12 @@ impl Default for Settings {
             keybind: "F8".to_string(),
             whisper_model_path: "./ggml-base.en.bin".to_string(),
             shortcuts,
+            voice_feedback: default_voice_feedback(),
         }
     }
 }
 
+#[derive(Clone)]
 struct AudioRecorder {
     samples: Arc<Mutex<Vec<f32>>>,
     recording: Arc<Mutex<bool>>,
@@ -167,8 +190,8 @@ impl AudioRecorder {
 }
 
 fn transcribe_audio(whisper_path: &str, audio_path: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Load whisper model
-    let ctx = WhisperContext::new(whisper_path)?;
+    // Load whisper model with parameters
+    let ctx = WhisperContext::new_with_params(whisper_path, whisper_rs::WhisperContextParameters::default())?;
     
     // Create parameters
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
@@ -183,15 +206,18 @@ fn transcribe_audio(whisper_path: &str, audio_path: &str) -> Result<String, Box<
         .map(|s| s.unwrap())
         .collect();
     
+    // Create a state for processing
+    let mut state = ctx.create_state()?;
+    
     // Run whisper
-    ctx.full(params, &samples)?;
+    state.full(params, &samples)?;
     
     // Get transcription
-    let num_segments = ctx.full_n_segments()?;
+    let num_segments = state.full_n_segments()?;
     let mut transcription = String::new();
     
     for i in 0..num_segments {
-        let segment = ctx.full_get_segment_text(i)?;
+        let segment = state.full_get_segment_text(i)?;
         transcription.push_str(&segment);
         transcription.push(' ');
     }
@@ -277,6 +303,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Whisper model not found".into());
     }
     
+    // Initialize voice feedback
+    let voice = VoiceFeedback::new(settings.voice_feedback.enabled);
+    
     let device_state = DeviceState::new();
     let recorder = AudioRecorder::new();
     let mut is_recording = false;
@@ -284,6 +313,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("Invalid keybind: {}", settings.keybind))?;
     
     println!("Voice assistant ready! Press {} to start/stop recording.", settings.keybind);
+    
+    // Announce that the assistant is ready
+    if settings.voice_feedback.enabled {
+        voice.speak("Voice assistant ready");
+    }
     
     loop {
         let keys: Vec<Keycode> = device_state.get_keys();
@@ -294,11 +328,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 is_recording = true;
                 println!("\n🎤 Recording started...");
                 
-                let recorder_clone = AudioRecorder::new();
-                let recorder_ref = &recorder;
+                // Announce recording start
+                if settings.voice_feedback.announce_recording {
+                    voice.speak("Recording");
+                }
+                
+                let recorder_clone = recorder.clone();
                 
                 thread::spawn(move || {
-                    if let Err(e) = recorder_ref.start_recording() {
+                    if let Err(e) = recorder_clone.start_recording() {
                         eprintln!("Recording error: {}", e);
                     }
                 });
@@ -314,6 +352,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 if !samples.is_empty() {
                     println!("Processing audio...");
+                    
+                    // Announce processing
+                    if settings.voice_feedback.announce_recording {
+                        voice.speak("Processing");
+                    }
                     
                     // Save audio to temporary file
                     let temp_audio = "temp_recording.wav";
@@ -335,9 +378,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if lower_text.contains(&phrase.to_lowercase()) {
                                     if let Err(e) = execute_command(command) {
                                         eprintln!("Failed to execute command: {}", e);
+                                        // Announce error
+                                        if settings.voice_feedback.announce_errors {
+                                            voice.speak(&format!("Failed to execute {}", phrase));
+                                        }
                                     } else {
                                         println!("✓ Executed: {}", phrase);
                                         command_executed = true;
+                                        // Announce success
+                                        if settings.voice_feedback.confirm_commands {
+                                            voice.speak(&format!("Executed {}", phrase));
+                                        }
                                     }
                                     break;
                                 }
@@ -345,9 +396,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             
                             if !command_executed {
                                 println!("No matching shortcut found.");
+                                // Announce no match
+                                if settings.voice_feedback.announce_errors {
+                                    voice.speak("No matching command found");
+                                }
                             }
                         }
-                        Err(e) => eprintln!("Transcription error: {}", e),
+                        Err(e) => {
+                            eprintln!("Transcription error: {}", e);
+                            // Announce transcription error
+                            if settings.voice_feedback.announce_errors {
+                                voice.speak("Transcription failed");
+                            }
+                        }
                     }
                     
                     // Clean up temp file
@@ -363,6 +424,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         thread::sleep(Duration::from_millis(50));
     }
-    
-    Ok(())
 }

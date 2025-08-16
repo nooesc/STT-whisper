@@ -17,6 +17,7 @@ This tool is designed for:
 - **Hotkey Activation**: Press and hold F8 (configurable) to record voice commands
 - **Local Speech Recognition**: Uses Whisper model for accurate offline transcription
 - **Custom Voice Shortcuts**: Define your own phrases to trigger any command
+- **Voice Feedback**: Audio announcements for recording status and command execution
 - **JSON Configuration**: Easy-to-edit settings file
 - **No Internet Required**: Everything runs locally on your machine
 
@@ -243,6 +244,37 @@ Available keys:
 - Modifier keys: `LCTRL`, `RCTRL`, `LSHIFT`, `RSHIFT`, `LALT`, `RALT`
 - `SPACE`
 
+### 7. Voice Feedback Configuration
+
+The assistant now includes voice feedback to announce recording status and command execution. You can customize this feature in your settings file:
+
+```json
+{
+  "keybind": "F8",
+  "whisper_model_path": "./ggml-base.en.bin",
+  "shortcuts": {
+    // your shortcuts here
+  },
+  "voice_feedback": {
+    "enabled": true,              // Enable/disable all voice feedback
+    "announce_recording": true,   // Announce when recording starts/stops
+    "confirm_commands": true,     // Announce successful command execution
+    "announce_errors": true       // Announce errors and failures
+  }
+}
+```
+
+Voice feedback options:
+- **enabled**: Master switch for all voice feedback
+- **announce_recording**: Plays "Recording" when you start and "Processing" when you stop
+- **confirm_commands**: Announces "Executed [command name]" when a command runs successfully
+- **announce_errors**: Announces failures like "No matching command found" or "Failed to execute [command]"
+
+Note: Voice feedback uses your system's default text-to-speech engine:
+- **Windows**: SAPI (Windows Speech API)
+- **macOS**: AVSpeechSynthesizer (macOS Speech)
+- **Linux**: speech-dispatcher or espeak
+
 ## Troubleshooting
 
 ### No input device available
@@ -264,6 +296,12 @@ Available keys:
 - Reduce background noise
 - Try a larger Whisper model for better accuracy
 - Ensure your microphone is working properly
+
+### Voice feedback not working
+- Check if voice feedback is enabled in settings
+- On Linux: Install speech-dispatcher: `sudo apt-get install speech-dispatcher` (Ubuntu/Debian)
+- On macOS: Check System Preferences > Accessibility > Spoken Content
+- Voice feedback will automatically disable if TTS initialization fails
 
 ## Performance Tips
 

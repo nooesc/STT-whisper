@@ -21,3 +21,6 @@ ggml-*.bin
 
 # Logs
 logs/
+
+# Command history
+command_history.json

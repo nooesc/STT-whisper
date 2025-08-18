@@ -18,6 +18,7 @@ This tool is designed for:
 - **Local Speech Recognition**: Uses Whisper model for accurate offline transcription
 - **Custom Voice Shortcuts**: Define your own phrases to trigger any command
 - **Voice Feedback**: Audio announcements for recording status and command execution
+- **Command History & Statistics**: Track your usage patterns and see what commands you use most
 - **JSON Configuration**: Easy-to-edit settings file
 - **No Internet Required**: Everything runs locally on your machine
 
@@ -83,6 +84,7 @@ cargo run --release
 4. Speak your command clearly
 5. Release **F8** to process the command
 6. The assistant will transcribe your speech and execute matching commands
+7. Press **F1** to view command statistics and recent history
 
 ## Creating Custom Voice Commands
 
@@ -275,6 +277,31 @@ Note: Voice feedback uses your system's default text-to-speech engine:
 - **macOS**: AVSpeechSynthesizer (macOS Speech)
 - **Linux**: speech-dispatcher or espeak
 
+## Command History and Statistics
+
+STT-Whisper now tracks your command usage to help you understand your patterns and optimize your workflow:
+
+### Features
+- **Automatic History Tracking**: Every command attempt is recorded with timestamp, transcription, and success status
+- **Performance Metrics**: Track average command execution time
+- **Usage Statistics**: See which commands you use most frequently
+- **Recent Commands View**: Quickly check your last few commands
+
+### Using History Features
+1. Press **F1** at any time to display:
+   - Total command count and success rate
+   - Most frequently used commands (top 5)
+   - Average command processing time
+   - Last 5 command attempts with timestamps
+
+2. History is automatically saved to `command_history.json`
+3. History is limited to the last 1000 commands to prevent excessive file size
+
+### Privacy Note
+- All history is stored locally in `command_history.json`
+- No data is sent to external servers
+- Delete the history file anytime to clear all records
+
 ## Troubleshooting
 
 ### No input device available
@@ -302,6 +329,11 @@ Note: Voice feedback uses your system's default text-to-speech engine:
 - On Linux: Install speech-dispatcher: `sudo apt-get install speech-dispatcher` (Ubuntu/Debian)
 - On macOS: Check System Preferences > Accessibility > Spoken Content
 - Voice feedback will automatically disable if TTS initialization fails
+
+### Command history not saving
+- Check file permissions in the application directory
+- The history file is saved as `command_history.json`
+- History is limited to the last 1000 commands to prevent excessive file size
 
 ## Performance Tips
 

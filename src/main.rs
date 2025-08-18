@@ -4,16 +4,20 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use hound::{WavSpec, WavWriter};
 use serde::{Deserialize, Serialize};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
+use chrono::Local;
 
 mod tts;
 use tts::VoiceFeedback;
+
+mod history;
+use history::{CommandEntry, CommandHistory};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Settings {
@@ -306,6 +310,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize voice feedback
     let voice = VoiceFeedback::new(settings.voice_feedback.enabled);
     
+    // Load command history
+    let history_path = "command_history.json";
+    let mut history = CommandHistory::load(history_path).unwrap_or_else(|_| CommandHistory::new());
+    
     let device_state = DeviceState::new();
     let recorder = AudioRecorder::new();
     let mut is_recording = false;
@@ -313,6 +321,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("Invalid keybind: {}", settings.keybind))?;
     
     println!("Voice assistant ready! Press {} to start/stop recording.", settings.keybind);
+    println!("Press F1 to show command statistics.");
     
     // Announce that the assistant is ready
     if settings.voice_feedback.enabled {
@@ -321,6 +330,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     loop {
         let keys: Vec<Keycode> = device_state.get_keys();
+        
+        // Check for F1 to show statistics
+        if keys.contains(&Keycode::F1) {
+            let stats = history.get_statistics();
+            stats.print_summary();
+            
+            // Show recent commands
+            println!("\n📜 Recent commands:");
+            for entry in history.get_recent_entries(5) {
+                println!("  {} - \"{}\" -> {}",
+                    entry.timestamp.format("%H:%M:%S"),
+                    entry.transcription,
+                    if entry.success { "✓" } else { "✗" }
+                );
+            }
+            println!();
+            
+            // Wait for key release
+            while device_state.get_keys().contains(&Keycode::F1) {
+                thread::sleep(Duration::from_millis(50));
+            }
+        }
         
         if keys.contains(&target_key) {
             if !is_recording {
@@ -353,6 +384,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if !samples.is_empty() {
                     println!("Processing audio...");
                     
+                    // Track processing start time
+                    let start_time = Instant::now();
+                    
                     // Announce processing
                     if settings.voice_feedback.announce_recording {
                         voice.speak("Processing");
@@ -373,9 +407,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Check for shortcuts
                             let lower_text = text.to_lowercase();
                             let mut command_executed = false;
+                            let mut matched_phrase = None;
+                            let mut executed_command = None;
                             
                             for (phrase, command) in &settings.shortcuts {
                                 if lower_text.contains(&phrase.to_lowercase()) {
+                                    matched_phrase = Some(phrase.clone());
+                                    executed_command = Some(command.clone());
+                                    
                                     if let Err(e) = execute_command(command) {
                                         eprintln!("Failed to execute command: {}", e);
                                         // Announce error
@@ -394,12 +433,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             
-                            if !command_executed {
+                            if !command_executed && matched_phrase.is_none() {
                                 println!("No matching shortcut found.");
                                 // Announce no match
                                 if settings.voice_feedback.announce_errors {
                                     voice.speak("No matching command found");
                                 }
+                            }
+                            
+                            // Record in history
+                            let duration_ms = start_time.elapsed().as_millis() as u64;
+                            let entry = CommandEntry {
+                                timestamp: Local::now(),
+                                transcription: text,
+                                command_matched: matched_phrase,
+                                command_executed: executed_command,
+                                success: command_executed,
+                                duration_ms,
+                            };
+                            history.add_entry(entry);
+                            
+                            // Save history
+                            if let Err(e) = history.save(history_path) {
+                                eprintln!("Failed to save history: {}", e);
                             }
                         }
                         Err(e) => {
@@ -408,6 +464,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if settings.voice_feedback.announce_errors {
                                 voice.speak("Transcription failed");
                             }
+                            
+                            // Record failed transcription in history
+                            let duration_ms = start_time.elapsed().as_millis() as u64;
+                            let entry = CommandEntry {
+                                timestamp: Local::now(),
+                                transcription: "[Transcription failed]".to_string(),
+                                command_matched: None,
+                                command_executed: None,
+                                success: false,
+                                duration_ms,
+                            };
+                            history.add_entry(entry);
                         }
                     }
                     

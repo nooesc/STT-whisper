@@ -80,6 +80,10 @@ impl CommandHistory {
     pub fn get_recent_entries(&self, count: usize) -> Vec<&CommandEntry> {
         self.entries.iter().rev().take(count).collect()
     }
+
+    pub fn get_all_entries(&self) -> &Vec<CommandEntry> {
+        &self.entries
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

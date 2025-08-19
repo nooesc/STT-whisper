@@ -19,6 +19,9 @@ use tts::VoiceFeedback;
 mod history;
 use history::{CommandEntry, CommandHistory};
 
+mod suggestions;
+use suggestions::SmartSuggestions;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Settings {
     keybind: String,
@@ -314,6 +317,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let history_path = "command_history.json";
     let mut history = CommandHistory::load(history_path).unwrap_or_else(|_| CommandHistory::new());
     
+    // Initialize smart suggestions
+    let suggestions_engine = SmartSuggestions::new();
+    
     let device_state = DeviceState::new();
     let recorder = AudioRecorder::new();
     let mut is_recording = false;
@@ -322,6 +328,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("Voice assistant ready! Press {} to start/stop recording.", settings.keybind);
     println!("Press F1 to show command statistics.");
+    println!("Press F2 to show smart command suggestions.");
     
     // Announce that the assistant is ready
     if settings.voice_feedback.enabled {
@@ -349,6 +356,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // Wait for key release
             while device_state.get_keys().contains(&Keycode::F1) {
+                thread::sleep(Duration::from_millis(50));
+            }
+        }
+        
+        // Check for F2 to show smart suggestions
+        if keys.contains(&Keycode::F2) {
+            println!("\n🧠 Smart Command Suggestions:");
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            
+            // Time-based suggestions
+            let time_suggestions = suggestions_engine.get_time_based_suggestions(&history, 5);
+            if !time_suggestions.is_empty() {
+                println!("⏰ Based on the current time, you might want to use:");
+                for (i, cmd) in time_suggestions.iter().enumerate() {
+                    println!("   {}. {}", i + 1, cmd);
+                }
+                println!();
+            }
+            
+            // Frequency-based suggestions
+            let freq_suggestions = suggestions_engine.get_frequency_suggestions(&history, 5);
+            if !freq_suggestions.is_empty() {
+                println!("📊 Your most frequently used commands:");
+                for (i, cmd) in freq_suggestions.iter().enumerate() {
+                    println!("   {}. {}", i + 1, cmd);
+                }
+            }
+            
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            println!("💡 Tip: The assistant now supports fuzzy matching!");
+            println!("   Say 'termnal' and it will understand 'terminal'");
+            println!();
+            
+            // Wait for key release
+            while device_state.get_keys().contains(&Keycode::F2) {
                 thread::sleep(Duration::from_millis(50));
             }
         }
@@ -404,12 +446,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(text) => {
                             println!("Transcription: {}", text);
                             
-                            // Check for shortcuts
+                            // Check for shortcuts using fuzzy matching
                             let lower_text = text.to_lowercase();
                             let mut command_executed = false;
                             let mut matched_phrase = None;
                             let mut executed_command = None;
                             
+                            // First try exact matching
                             for (phrase, command) in &settings.shortcuts {
                                 if lower_text.contains(&phrase.to_lowercase()) {
                                     matched_phrase = Some(phrase.clone());
@@ -433,8 +476,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             
+                            // If no exact match, try fuzzy matching
+                            if !command_executed && matched_phrase.is_none() {
+                                if let Some((best_match, score)) = suggestions_engine.find_best_match(&lower_text, &settings.shortcuts) {
+                                    println!("🤔 No exact match, but found: '{}' ({}% similarity)", best_match, (score * 100.0) as i32);
+                                    
+                                    if score >= 0.85 {
+                                        // High confidence - execute automatically
+                                        matched_phrase = Some(best_match.to_string());
+                                        if let Some(command) = settings.shortcuts.get(best_match) {
+                                            executed_command = Some(command.clone());
+                                            
+                                            if let Err(e) = execute_command(command) {
+                                                eprintln!("Failed to execute command: {}", e);
+                                                if settings.voice_feedback.announce_errors {
+                                                    voice.speak(&format!("Failed to execute {}", best_match));
+                                                }
+                                            } else {
+                                                println!("✓ Auto-executed fuzzy match: {}", best_match);
+                                                command_executed = true;
+                                                if settings.voice_feedback.confirm_commands {
+                                                    voice.speak(&format!("Executed {}", best_match));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
                             if !command_executed && matched_phrase.is_none() {
                                 println!("No matching shortcut found.");
+                                
+                                // Show smart suggestions
+                                let suggestions = suggestions_engine.get_suggestions_for_failed_command(&text, &history, &settings.shortcuts);
+                                if !suggestions.is_empty() {
+                                    println!("\n💡 Suggestions:");
+                                    for suggestion in &suggestions {
+                                        println!("   {}", suggestion);
+                                    }
+                                    
+                                    // Also show time-based suggestions
+                                    let time_suggestions = suggestions_engine.get_time_based_suggestions(&history, 3);
+                                    if !time_suggestions.is_empty() {
+                                        println!("   Commands you often use at this time: {}", time_suggestions.join(", "));
+                                    }
+                                }
+                                
                                 // Announce no match
                                 if settings.voice_feedback.announce_errors {
                                     voice.speak("No matching command found");

@@ -51,6 +51,7 @@ impl VoiceFeedback {
         });
     }
 
+    #[allow(dead_code)]
     pub fn speak_blocking(&self, text: &str) {
         if !self.enabled {
             return;
@@ -63,6 +64,7 @@ impl VoiceFeedback {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_speaking(&self) -> bool {
         if !self.enabled {
             return false;
@@ -76,6 +78,7 @@ impl VoiceFeedback {
         false
     }
 
+    #[allow(dead_code)]
     pub fn stop(&self) {
         if !self.enabled {
             return;

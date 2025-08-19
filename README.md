@@ -19,6 +19,8 @@ This tool is designed for:
 - **Custom Voice Shortcuts**: Define your own phrases to trigger any command
 - **Voice Feedback**: Audio announcements for recording status and command execution
 - **Command History & Statistics**: Track your usage patterns and see what commands you use most
+- **Smart Command Suggestions**: AI-powered suggestions based on your usage patterns and time of day
+- **Fuzzy Matching**: Automatically understands misspoken commands (e.g., "termnal" → "terminal")
 - **JSON Configuration**: Easy-to-edit settings file
 - **No Internet Required**: Everything runs locally on your machine
 
@@ -85,6 +87,7 @@ cargo run --release
 5. Release **F8** to process the command
 6. The assistant will transcribe your speech and execute matching commands
 7. Press **F1** to view command statistics and recent history
+8. Press **F2** to view smart command suggestions based on your usage patterns
 
 ## Creating Custom Voice Commands
 
@@ -301,6 +304,41 @@ STT-Whisper now tracks your command usage to help you understand your patterns a
 - All history is stored locally in `command_history.json`
 - No data is sent to external servers
 - Delete the history file anytime to clear all records
+
+## Smart Command Suggestions
+
+The new Smart Suggestions feature learns from your usage patterns to provide intelligent command recommendations:
+
+### Features
+- **Fuzzy Matching**: Automatically corrects minor speech recognition errors
+  - Say "termnal" and it understands "terminal"
+  - Say "screnshoot" and it understands "screenshot"
+  - Confidence threshold: 70% similarity for suggestions, 85% for auto-execution
+
+- **Time-Based Suggestions**: Analyzes when you use certain commands
+  - Suggests commands you frequently use at the current time of day
+  - Considers both hour of day and day of week patterns
+  - Example: Suggests "open email" in the morning if that's your pattern
+
+- **Failed Command Help**: When a command doesn't match:
+  - Shows closest matching command with similarity percentage
+  - Displays commands you often use at this time
+  - Helps you discover the right phrase to use
+
+### Using Smart Suggestions
+1. Press **F2** to see:
+   - Time-based suggestions for the current time
+   - Your most frequently used commands
+   - Tips about fuzzy matching
+
+2. Fuzzy matching works automatically:
+   - High confidence (≥85%): Command executes automatically
+   - Medium confidence (70-84%): Shows suggestion but doesn't execute
+   - Low confidence (<70%): Shows general suggestions
+
+3. The system learns from your usage:
+   - More accurate suggestions over time
+   - Better time-based predictions as patterns emerge
 
 ## Troubleshooting
 
